@@ -78,6 +78,70 @@ curl -X POST http://127.0.0.1:5000/tips \
 
 ## 배포
 
+### Supabase 무료 배포
+
+Render 디스크 없이 무료로 상시 API처럼 쓰려면 Supabase Edge Function을 사용합니다. 이 방식은 CSV 파일 대신 Supabase Postgres 테이블 `resident_tips`에 저장합니다.
+
+1. Supabase에서 새 프로젝트를 만듭니다.
+2. 프로젝트 ref를 확인합니다. 예: `abcdefghijklmnop`
+3. CLI 로그인 및 프로젝트 연결:
+
+```bash
+supabase login
+supabase link --project-ref <PROJECT_REF>
+```
+
+4. 테이블 생성:
+
+```bash
+supabase db push
+```
+
+5. Edge Function 배포:
+
+```bash
+supabase functions deploy resident-tip-save --no-verify-jwt
+```
+
+배포 후 엔드포인트는 다음 형식입니다.
+
+```text
+https://<PROJECT_REF>.supabase.co/functions/v1/resident-tip-save
+```
+
+엔노이아 API 커넥터 설정:
+
+- Method: `POST`
+- URL: `https://<PROJECT_REF>.supabase.co/functions/v1/resident-tip-save`
+- HTTP Header: `Content-Type` = `application/json`
+- Body:
+
+```json
+{
+  "validated_tip": ${validated_tip}
+}
+```
+
+만약 엔노이아가 객체 삽입을 못 하면 문자열로 보내도 됩니다.
+
+```json
+{
+  "validated_tip": "${validated_tip}"
+}
+```
+
+선택 보안 설정:
+
+```bash
+supabase secrets set RESIDENT_TIP_API_KEY="<원하는_긴_랜덤값>"
+```
+
+이 값을 설정했다면 엔노이아 HTTP 헤더에 다음 항목도 추가해야 합니다.
+
+| 키 | 기본 값 |
+|---|---|
+| `x-api-key` | `<원하는_긴_랜덤값>` |
+
 ### 빠른 시연용 공개 URL
 
 로컬 서버를 실행한 뒤 별도 터미널에서 실행합니다.
