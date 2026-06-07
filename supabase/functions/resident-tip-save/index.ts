@@ -43,6 +43,36 @@ function asRecord(value: unknown): JsonRecord {
   return isRecord(value) ? value : {};
 }
 
+function looksLikeValidatedTip(value: JsonRecord): boolean {
+  return Boolean(
+    value.region ||
+      value.place_hint ||
+      value.local_observation ||
+      value.mission_dna ||
+      value.validation_status ||
+      value.source
+  );
+}
+
+function readValidatedTip(body: JsonRecord): JsonRecord {
+  if (body.validated_tip !== undefined && body.validated_tip !== null) {
+    return parseJsonRecord(body.validated_tip, "validated_tip");
+  }
+
+  if (body.tip !== undefined && body.tip !== null) {
+    return parseJsonRecord(body.tip, "tip");
+  }
+
+  if (looksLikeValidatedTip(body)) {
+    return body;
+  }
+
+  const keys = Object.keys(body);
+  throw new Error(
+    `validated_tip을 찾을 수 없습니다. 요청 body 키: ${keys.length ? keys.join(", ") : "(없음)"}`
+  );
+}
+
 function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
@@ -127,7 +157,7 @@ Deno.serve(async (request) => {
 
     const payload = await request.json();
     const body = parseJsonRecord(payload, "요청 본문");
-    const tip = parseJsonRecord(body.validated_tip, "validated_tip");
+    const tip = readValidatedTip(body);
     const missionDna = asRecord(tip.mission_dna);
 
     if (tip.validation_status !== "pass") {
