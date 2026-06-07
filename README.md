@@ -109,6 +109,12 @@ supabase functions deploy resident-tip-save --no-verify-jwt
 https://<PROJECT_REF>.supabase.co/functions/v1/resident-tip-save
 ```
 
+현재 `OffMap_RAG` 프로젝트의 실제 엔드포인트:
+
+```text
+https://mwyahmbntsheysnnennr.supabase.co/functions/v1/resident-tip-save
+```
+
 엔노이아 API 커넥터 설정:
 
 - Method: `POST`
