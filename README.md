@@ -1,45 +1,38 @@
-# OffMap Resident Tip Flask API
+# OffMap Resident Tip API
 
-엔노이아 `resident_tip_save` API 커넥터가 `POST /tips`로 보내는 `validated_tip`을 받아 `data/resident_tips.csv`에 저장하는 Flask 서버입니다.
+엔노이아에서 전달한 `validated_tip`을 저장하는 API입니다.
 
-## 설치
+로컬 Flask 서버는 CSV에 저장하고, Supabase Edge Function은 `resident_tips`
+테이블에 저장합니다.
+
+## Local
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-## 실행
-
-```bash
 python app.py
 ```
 
-기본 포트는 `5000`입니다. 다른 포트를 쓰려면 `PORT` 환경변수를 지정합니다.
+기본 주소는 `http://127.0.0.1:5000`입니다.
 
-```bash
-PORT=8000 python app.py
-```
+## Endpoints
 
-## 엔드포인트
-
-- `GET /`: 서비스 정보
 - `GET /health`: 상태 확인
-- `POST /tips`: `validated_tip` 저장
+- `POST /tips`: 검증된 제보 저장
 - `GET /tips`: 최근 20개 저장 데이터 조회
 
-## POST 요청 형식
+`POST /tips` 요청:
 
 ```json
 {
   "validated_tip": {
     "region": "부산",
-    "place_hint": "부산역 근처 영동밀면&돼지국밥",
+    "place_hint": "부산역 근처",
     "local_observation": "로컬 관찰 내용",
     "mission_dna": {
-      "mission_action": "밀면과 돼지국밥을 비교해보기",
-      "clear_condition_seed": "더 부산답다고 느낀 메뉴와 이유 남기기"
+      "mission_action": "현장에서 비교해보기",
+      "clear_condition_seed": "선택한 이유 남기기"
     },
     "validation_status": "pass",
     "source": "resident_contribution"
@@ -47,127 +40,82 @@ PORT=8000 python app.py
 }
 ```
 
-`validated_tip`이 JSON 문자열로 들어와도 서버가 다시 파싱합니다.
+`validated_tip`은 JSON 객체 또는 JSON 문자열을 받을 수 있습니다.
+일부 커넥터 미리보기처럼 `{ "value": ... }`로 감싸져 들어오는 요청도 같은
+방식으로 처리합니다.
 
-## 로컬 테스트
-
-```bash
-curl http://127.0.0.1:5000/health
-```
+## Supabase
 
 ```bash
-curl -X POST http://127.0.0.1:5000/tips \
-  -H "Content-Type: application/json" \
-  -d '{
-    "validated_tip": {
-      "region": "부산",
-      "place_hint": "부산역 근처 영동밀면&돼지국밥",
-      "local_observation": "관광객들이 밀면이나 돼지국밥 중 하나만 먹고 가는 경우가 많지만, 둘 다 비교해보면 부산식 조합을 더 잘 느낄 수 있음",
-      "mission_dna": {
-        "mission_action": "밀면과 돼지국밥을 둘 다 시켜서 부산식 조합을 비교해보기",
-        "clear_condition_seed": "둘 중 더 부산답다고 느낀 메뉴를 고르고 이유 한 줄 남기기",
-        "influence_scope": "candidate"
-      },
-      "validation_status": "pass",
-      "source": "resident_contribution"
-    }
-  }'
-```
-
-엔노이아에서 호출하려면 `ngrok http 5000` 같은 공개 HTTPS 터널을 열고 커넥터 URL을 `https://.../tips`로 설정해야 합니다.
-
-## 배포
-
-### Supabase 무료 배포
-
-Render 디스크 없이 무료로 상시 API처럼 쓰려면 Supabase Edge Function을 사용합니다. 이 방식은 CSV 파일 대신 Supabase Postgres 테이블 `resident_tips`에 저장합니다.
-
-1. Supabase에서 새 프로젝트를 만듭니다.
-2. 프로젝트 ref를 확인합니다. 예: `abcdefghijklmnop`
-3. CLI 로그인 및 프로젝트 연결:
-
-```bash
-supabase login
 supabase link --project-ref <PROJECT_REF>
-```
-
-4. 테이블 생성:
-
-```bash
 supabase db push
-```
-
-5. Edge Function 배포:
-
-```bash
 supabase functions deploy resident-tip-save --no-verify-jwt
 ```
 
-배포 후 엔드포인트는 다음 형식입니다.
+배포 엔드포인트:
 
 ```text
 https://<PROJECT_REF>.supabase.co/functions/v1/resident-tip-save
 ```
 
-현재 `OffMap_RAG` 프로젝트의 실제 엔드포인트:
+현재 배포된 `OffMap_RAG` 엔드포인트:
 
 ```text
 https://mwyahmbntsheysnnennr.supabase.co/functions/v1/resident-tip-save
 ```
 
-엔노이아 API 커넥터 설정:
+엔노이아 `resident_tip_save` 커넥터 설정:
 
 - Method: `POST`
-- URL: `https://<PROJECT_REF>.supabase.co/functions/v1/resident-tip-save`
-- HTTP Header: `Content-Type` = `application/json`
-- Body:
+- URL: `https://mwyahmbntsheysnnennr.supabase.co/functions/v1/resident-tip-save`
+- Header: `Content-Type: application/json`
+- Body: `{ "validated_tip": ${last_payload} }`
+
+Supabase Edge Function은 `validated_tip`에 전체 OffMap Envelope가 들어오면
+`payload.resident.validated_tip`을 찾아 저장합니다. 기존처럼 검증된 팁 객체를
+직접 보내는 방식도 계속 허용합니다.
+
+엔노이아가 객체 삽입을 못 하고 문자열 JSON으로 보내는 경우도 허용합니다.
 
 ```json
 {
-  "validated_tip": ${validated_tip}
+  "validated_tip": "${last_payload}"
 }
 ```
 
-만약 엔노이아가 객체 삽입을 못 하면 문자열로 보내도 됩니다.
+저장 조건:
+
+- `payload.resident.validation_status == "pass"` 또는 직접 팁의 `validation_status == "pass"`
+- `mission_dna.mission_action`, top-level `mission_action`, `mission_dna.clear_condition_seed`,
+  top-level `clear_condition_seed` 중 하나 이상 존재
+- `resident_reject`, `reject`, `soft_close` 라우트는 저장하지 않음
+
+성공 응답:
 
 ```json
 {
-  "validated_tip": "${validated_tip}"
+  "ok": true,
+  "tip_id": "busan_001"
 }
 ```
 
-선택 보안 설정:
+한 에이전트에서 API 커넥터와 Function Calling을 동시에 활성화하지 않습니다.
+
+선택적으로 API 키를 설정할 수 있지만, 이 경우 커넥터에도 `x-api-key` 헤더를
+추가해야 합니다. `Content-Type`만 쓰는 현재 커넥터 구성에서는 설정하지 않는
+것이 가장 단순합니다.
 
 ```bash
-supabase secrets set RESIDENT_TIP_API_KEY="<원하는_긴_랜덤값>"
+supabase secrets set RESIDENT_TIP_API_KEY="<API_KEY>"
 ```
 
-이 값을 설정했다면 엔노이아 HTTP 헤더에 다음 항목도 추가해야 합니다.
+## Render
 
-| 키 | 기본 값 |
-|---|---|
-| `x-api-key` | `<원하는_긴_랜덤값>` |
-
-### 빠른 시연용 공개 URL
-
-로컬 서버를 실행한 뒤 별도 터미널에서 실행합니다.
-
-```bash
-ngrok http 5000
-```
-
-표시되는 HTTPS 주소 뒤에 `/tips`를 붙여 엔노이아 커넥터 URL로 사용합니다.
-
-```text
-https://example.ngrok-free.app/tips
-```
-
-### Render 배포
-
-이 저장소를 GitHub에 올린 뒤 Render에서 Blueprint 또는 Web Service로 연결할 수 있습니다.
+`render.yaml` Blueprint를 사용하거나 Web Service를 직접 만들 수 있습니다.
 
 - Build Command: `pip install -r requirements.txt`
 - Start Command: `gunicorn app:app`
 - Health Check Path: `/health`
 
-CSV 저장을 유지하려면 Render Disk를 붙이고 `DATA_DIR=/var/data`로 설정해야 합니다.
+CSV 저장을 유지하려면 디스크를 붙이고 `DATA_DIR`를 영구 디스크 경로로
+설정합니다.
