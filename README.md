@@ -1,6 +1,6 @@
 # OffMap Resident Tip API
 
-엔노이아에서 전달한 `validated_tip`을 저장하는 API입니다.
+`validated_tip`을 저장하는 API입니다.
 
 로컬 Flask 서버는 CSV에 저장하고, Supabase Edge Function은 `resident_tips`
 테이블에 저장합니다.
